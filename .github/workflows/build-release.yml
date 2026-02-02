@@ -1,4 +1,4 @@
-name: Manual Build & Release (AMD64 -> GitHub Packages)
+name: Build & Release
 
 on:
   workflow_dispatch:
