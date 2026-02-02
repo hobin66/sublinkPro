@@ -1087,11 +1087,32 @@ func GetInstallScript(c *gin.Context) {
 	// 3. 读取模板文件
 	// 注意：根据你的 Dockerfile，模板目录是 /app/template
 	// 本地开发时可能是 ./template
-	scriptPath := "template/install-singbox.sh"
-	content, err := os.ReadFile(scriptPath)
-	if err != nil {
-		utils.Error("读取脚本模板失败: %v", err)
-		utils.FailWithMsg(c, "Script template not found")
+	filename := "install-singbox.sh"
+	// 定义搜索路径列表，优先级从高到低
+	searchPaths := []string{
+		"/app/template/" + filename, // 1. Docker 容器内的绝对路径 (最高优先级)
+		"template/" + filename,      // 2. 相对路径 (适配本地开发或标准工作目录)
+		"./template/" + filename,    // 3. 显式相对路径
+	}
+
+	var content []byte
+	var err error
+	found := false
+
+	// 遍历路径尝试读取
+	for _, path := range searchPaths {
+		content, err = os.ReadFile(path)
+		if err == nil {
+			found = true
+			// utils.Info("成功加载模板文件: %s", path) // 可选：记录日志
+			break
+		}
+	}
+
+	if !found {
+		// 如果所有路径都失败，打印最后一个错误，并列出尝试过的路径
+		utils.Error("读取脚本模板失败。尝试路径: %v, 错误: %v", searchPaths, err)
+		utils.FailWithMsg(c, "Script template not found in any search paths")
 		return
 	}
 
