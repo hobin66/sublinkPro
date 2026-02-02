@@ -158,7 +158,16 @@ select_protocols() {
             arg="$1"
             # 转小写
             arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
-            
+            case "$arg_lower" in
+                --token)
+                    if [[ -n "${2:-}" ]]; then
+                        REPORT_TOKEN="$2"
+                        info "-> 接收到上报 Token"
+                        shift # 移除值参数
+                    else
+                        warn "--token 参数后面必须跟 Token 值"
+                    fi
+                    ;;
                 ss|shadowsocks) 
                     ENABLE_SS=true 
                     info "-> 启用 Shadowsocks"
