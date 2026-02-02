@@ -965,7 +965,7 @@ func NodeReport(c *gin.Context) {
 
 	// 设置默认分组
 	if req.Group == "" {
-		req.Group = "AutoReport"
+		req.Group = ""
 	}
 
 	if req.Link == "" {

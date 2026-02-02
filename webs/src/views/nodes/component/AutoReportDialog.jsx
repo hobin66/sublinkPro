@@ -160,76 +160,68 @@ const AutoReportDialog = ({ open, onClose }) => {
     return `bash -c "$(curl -fsSL ${host}/report-add)" -- ${protocolStr} ${tokenStr}`;
   }, [baseUrl, token, selectedProtocols]);
 
-  const handleCopy = async () => {
+  const handleCopy = () => {
     const text = generatedCommand;
-
-    // 0. 防御性检查：确保有内容可复制
     if (!text) {
         showMsg('生成命令为空，无法复制', 'error');
         return;
     }
 
-    // === 定义降级复制策略 (兼容 HTTP / 旧浏览器) ===
+    // === 定义降级复制策略 (完全参照 sub_manager.html 的逻辑) ===
     const fallbackCopy = () => {
+      let textArea = null;
       try {
-        const textArea = document.createElement("textarea");
+        textArea = document.createElement("textarea");
         textArea.value = text;
         
-        // 🔧 [核心修改] 样式调整：
-        // 移出可视区域而不是设为透明，确保浏览器认为它是"可交互"的
+        // 🔧 [核心修改] 样式完全参照 sub_manager.html
+        // 只设置 position: fixed，避免因移出屏幕(left: -9999px)被浏览器判定为不可见而失效
+        // 增加 opacity: 0 防止页面出现闪烁的白框，这通常不影响复制功能
         textArea.style.position = "fixed";
-        textArea.style.left = "-9999px";
+        textArea.style.left = "0";
         textArea.style.top = "0";
-        // 保持一定的宽高，防止被浏览器忽略
-        textArea.style.width = "1px";
-        textArea.style.height = "1px";
-        textArea.style.padding = "0";
-        textArea.style.border = "none";
-        textArea.style.outline = "none";
-        textArea.style.boxShadow = "none";
-        textArea.style.background = "transparent";
+        textArea.style.opacity = "0"; 
         
         document.body.appendChild(textArea);
         
-        // 聚焦并选中
         textArea.focus();
         textArea.select();
-        // 🔧 [兼容性] 移动端/部分浏览器需要设置选区范围
-        textArea.setSelectionRange(0, 99999); 
         
         const successful = document.execCommand('copy');
-        document.body.removeChild(textArea);
         
         if (successful) {
           setCopySuccess(true);
           setTimeout(() => setCopySuccess(false), 2000);
           showMsg('复制成功', 'success');
         } else {
-          // execCommand 返回 false
-          throw new Error('execCommand failed');
+          showMsg('浏览器不支持自动复制，请手动选中复制', 'error');
         }
       } catch (err) {
         console.error('Fallback copy failed:', err);
-        // 最后的保底：提示用户手动复制
-        showMsg('复制失败，请手动选中文本复制', 'error');
+        showMsg('复制失败', 'error');
+      } finally {
+        // 确保清理 DOM
+        if (textArea && document.body.contains(textArea)) {
+          document.body.removeChild(textArea);
+        }
       }
     };
 
-    // === 主逻辑：优先尝试 API，失败则降级 ===
-    // 注意：navigator.clipboard 在非 HTTPS (http://IP) 下通常是 undefined
+    // === 主逻辑：优先尝试现代 API，失败则降级 ===
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      try {
-        await navigator.clipboard.writeText(text);
-        setCopySuccess(true);
-        setTimeout(() => setCopySuccess(false), 2000);
-        showMsg('复制成功', 'success');
-      } catch (err) {
-        // API 调用失败（可能是权限或环境问题），转入降级
-        console.warn('Clipboard API failed, switching to fallback...', err);
-        fallbackCopy();
-      }
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+          showMsg('复制成功', 'success');
+        })
+        .catch((err) => {
+          // 如果 HTTPS/权限 问题导致报错，立即切换到降级方案
+          console.warn('Clipboard API failed, switching to fallback...', err);
+          fallbackCopy();
+        });
     } else {
-      // 浏览器不支持 API 或处于非安全上下文，直接降级
+      // 浏览器不支持 API 或处于非安全上下文(http)，直接降级
       fallbackCopy();
     }
   };
