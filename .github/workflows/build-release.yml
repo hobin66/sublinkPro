@@ -1,6 +1,5 @@
-name: Manual Build & Release (AMD64 Only)
+name: Manual Build & Release (AMD64 -> GitHub Packages)
 
-# 1. 触发方式：只允许手动，且必须输入版本号
 on:
   workflow_dispatch:
     inputs:
@@ -9,6 +8,7 @@ on:
         required: true
         default: '0.0.1'
 
+# 权限配置非常重要，packages: write 允许推送到 GitHub Packages
 permissions:
   contents: write
   packages: write
@@ -42,7 +42,7 @@ jobs:
           path: webs/dist/
           retention-days: 1
 
-  # === 第二步：构建 Go 后端 (只构建 Linux AMD64) ===
+  # === 第二步：构建 Go 后端 (AMD64) ===
   build-go-binary:
     needs: build-frontend
     runs-on: ubuntu-latest
@@ -61,7 +61,6 @@ jobs:
           name: frontend-dist
           path: static/
 
-      # 关键步骤：把手动输入的版本号写入 VERSION 文件
       - name: Write version to VERSION file
         run: |
           echo "${{ inputs.version }}" > VERSION
@@ -73,12 +72,6 @@ jobs:
           echo "Building for Linux AMD64..."
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
             go build -tags=prod -ldflags="-s -w" -o build/sublinkPro-linux-amd64 .
-
-      # UPX 压缩 (可选，如果你不需要可以删掉这一步)
-      - name: Compress binary with UPX
-        run: |
-          sudo apt-get update && sudo apt-get install -y upx
-          upx --best --lzma build/sublinkPro-linux-amd64 || true
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -101,15 +94,14 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          # 使用输入的版本号作为 Tag 和 标题
           tag_name: v${{ inputs.version }}
           name: v${{ inputs.version }} Manual Release
           body: |
-            ## 🚀 手动构建发布
+            ## 🚀 手动构建发布 (GitHub Packages)
             
             - **版本**: ${{ inputs.version }}
             - **架构**: Linux AMD64
-            - **时间**: $(date '+%Y-%m-%d %H:%M:%S')
+            - **镜像源**: `ghcr.io/${{ github.repository_owner }}/sublink-pro`
           files: |
             build/sublinkPro-linux-amd64
           draft: false
@@ -117,7 +109,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # === 第四步：构建 Docker 镜像 ===
+  # === 第四步：构建 Docker 镜像并推送到 GitHub Packages ===
   build-docker:
     needs: [build-frontend, build-go-binary]
     runs-on: ubuntu-latest
@@ -125,7 +117,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 这里的 artifacts 下载是为了让 Dockerfile.ci 能找到文件
       - name: Download frontend artifacts
         uses: actions/download-artifact@v4
         with:
@@ -144,20 +135,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      # 【关键修改 1】登录 GitHub Container Registry (ghcr.io)
+      # 使用 github.actor (触发者) 和 secrets.GITHUB_TOKEN (自动生成的令牌)
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 【关键修改 2】构建并推送
       - name: Build and Push Docker Image
         run: |
           VERSION="${{ inputs.version }}"
-          echo "Building Docker image for version: $VERSION"
           
-          # 直接使用手动输入的版本号打 tag，同时也打 latest
+          # 定义镜像名称: ghcr.io/用户名/sublink-pro
+          # 使用 ${{ github.repository_owner }} 自动填入你的 GitHub 用户名
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/sublink-pro"
+          
+          # ⚠️ 必须转为全小写 (Docker 强制要求)
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          
+          echo "Target Image: $IMAGE_NAME:$VERSION"
+          
           docker buildx build --no-cache --pull --platform linux/amd64 \
             -f Dockerfile.ci \
-            -t zerodeng/sublink-pro:$VERSION \
-            -t zerodeng/sublink-pro:latest \
+            -t $IMAGE_NAME:$VERSION \
+            -t $IMAGE_NAME:latest \
             --push .
