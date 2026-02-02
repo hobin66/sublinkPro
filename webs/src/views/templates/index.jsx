@@ -373,9 +373,20 @@ export default function TemplateList() {
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={template.category === 'surge' ? 'Surge' : 'Clash'}
-                      color={template.category === 'surge' ? 'secondary' : 'primary'}
+                      label={template.category === 'surge' ? 'Surge' : (template.category === 'singbox' ? 'Sing-box' : 'Clash')}
+                      // 注意：Sing-box 时 color 设为 'default'，这样才能应用下面的 sx 自定义颜色
+                      color={template.category === 'surge' ? 'secondary' : (template.category === 'singbox' ? 'default' : 'primary')}
                       size="small"
+                      sx={
+                        template.category === 'singbox'
+                          ? {
+                              bgcolor: '#fff8e1', // 🔧 [背景] 这里调得更浅了 (原 warning 是深橙色)
+                              color: '#e65c00a9',   // 🔧 [文字] 这里调得更深了 (深橘色，像旧书页的字)
+                              border: '1px solid #ffecb3', // (可选) 加个微弱的边框，让它更有层次感
+                              fontWeight: 500
+                            }
+                          : {}
+                      }
                     />
                   </TableCell>
                   <TableCell>
@@ -435,6 +446,7 @@ export default function TemplateList() {
                 <Select value={formData.category} label="类别" onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
                   <MenuItem value="clash">Clash</MenuItem>
                   <MenuItem value="surge">Surge</MenuItem>
+                  <MenuItem value="singbox">Sing-box</MenuItem>
                 </Select>
               </FormControl>
             </Stack>
@@ -657,7 +669,11 @@ export default function TemplateList() {
               )}
               <Editor
                 height="350px"
-                language={formData.category === 'surge' ? 'ini' : 'yaml'}
+                language={
+                  formData.filename && formData.filename.endsWith('.sh') 
+                  ? 'shell' 
+                  : (formData.category === 'singbox' ? 'json' : (formData.category === 'surge' ? 'ini' : 'yaml'))
+                }
                 value={formData.text}
                 onChange={(value) => setFormData({ ...formData, text: value || '' })}
                 theme="vs-dark"

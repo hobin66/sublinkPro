@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
+	"html/template"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sublink/models"
@@ -930,40 +933,274 @@ func ParseNodeFromLink(link string) (models.Node, error) {
 	return Node, nil
 }
 
-// NodeReport 节点自动上报接口 (新增)
+// NodeReport 节点自动上报接口 (修改版：增加 Token 验证)
 func NodeReport(c *gin.Context) {
-	link := c.PostForm("link")
-	// 默认分组为 AutoReport，也可以由上报端通过参数指定
-	group := c.DefaultPostForm("group", "AutoReport")
+	// 1. 定义请求结构体，增加 Token 字段
+	var req struct {
+		Link  string `json:"link" form:"link"`
+		Group string `json:"group" form:"group"`
+		Token string `json:"token" form:"token"` // 新增 Token 字段
+	}
 
-	if link == "" {
+	// 2. 绑定参数
+	if err := c.ShouldBind(&req); err != nil {
+		req.Link = c.PostForm("link")
+		req.Group = c.PostForm("group")
+		req.Token = c.PostForm("token")
+	}
+
+	// === 核心修改：Token 验证 ===
+	// 从数据库获取设置的 Token (假设 Settings 表中有 report_token 字段)
+	// 如果你没有 models.GetSetting，请根据你的代码替换为实际获取系统配置的方法
+	storedToken, _ := models.GetSetting("report_token")
+
+	// 如果系统设置了 Token，则强制验证
+	if storedToken != "" {
+		if req.Token != storedToken {
+			utils.FailWithMsg(c, "Invalid Report Token")
+			return
+		}
+	}
+	// ===========================
+
+	// 设置默认分组
+	if req.Group == "" {
+		req.Group = "AutoReport"
+	}
+
+	if req.Link == "" {
 		utils.FailWithMsg(c, "Link cannot be empty")
 		return
 	}
 
-	// 1. 调用公共解析函数 (复用逻辑)
-	parsedNode, err := ParseNodeFromLink(link)
+	// 3. 调用公共解析函数
+	parsedNode, err := ParseNodeFromLink(req.Link)
 	if err != nil {
 		utils.FailWithMsg(c, "Invalid Link Format")
 		return
 	}
 
-	// 2. 设置自动上报的特定参数
-	parsedNode.Source = "自动上报"            // 标记来源为自动上报
-	parsedNode.Group = group              // 设置分组
-	parsedNode.DialerProxyName = "Direct" // 默认直连 (可根据需求修改)
+	// 4. 设置自动上报的特定参数
+	parsedNode.Source = "自动上报"            // 标记来源
+	parsedNode.Group = req.Group          // 使用获取到的分组
+	parsedNode.DialerProxyName = "Direct" // 默认直连
 
-	// 3. 生成 ContentHash (用于 UpsertNode 去重判断)
-	if proxy, err := protocol.LinkToProxy(protocol.Urls{Url: link}, protocol.OutputConfig{}); err == nil {
+	// 5. 生成 ContentHash (用于去重)
+	if proxy, err := protocol.LinkToProxy(protocol.Urls{Url: req.Link}, protocol.OutputConfig{}); err == nil {
 		parsedNode.ContentHash = protocol.GenerateProxyContentHash(proxy)
 	}
 
-	// 4. 核心：调用 UpsertNode (存在即更新，不存在即新增)
-	// 前提：请确保 models/node.go 中已经加入了 UpsertNode 方法
+	// 6. 核心：调用 UpsertNode (存在即更新，不存在即新增)
 	if err := parsedNode.UpsertNode(); err != nil {
 		utils.FailWithMsg(c, "Report Failed: "+err.Error())
 		return
 	}
 
 	utils.OkWithMsg(c, "Report Success")
+}
+
+// GetReportToken 获取节点上报 Token
+func GetReportToken(c *gin.Context) {
+	// 从数据库获取配置 (复用 models.GetSetting)
+	token, _ := models.GetSetting("report_token")
+	utils.OkWithData(c, gin.H{"reportToken": token})
+}
+
+// UpdateReportToken 更新节点上报 Token
+func UpdateReportToken(c *gin.Context) {
+	var req struct {
+		ReportToken string `json:"reportToken"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithMsg(c, "参数错误")
+		return
+	}
+
+	// 保存配置到数据库 (复用 models.SetSetting)
+	err := models.SetSetting("report_token", req.ReportToken)
+	if err != nil {
+		utils.FailWithMsg(c, "保存失败")
+		return
+	}
+	utils.OkWithMsg(c, "保存成功")
+}
+
+// getOrSetDefault 获取设置，如果不存在则设置默认值并保存到数据库
+func getOrSetDefault(key string, defaultValue string) string {
+	val, err := models.GetSetting(key)
+	// 如果获取出错或值为空，则视为不存在（或需要初始化）
+	if err != nil || val == "" {
+		// 保存默认值到数据库
+		// 注意：这里的 SetSetting 必须是你之前修复过的支持 Upsert 的版本
+		if err := models.SetSetting(key, defaultValue); err != nil {
+			utils.Error("初始化默认设置失败 [%s]: %v", key, err)
+		}
+		return defaultValue
+	}
+	return val
+}
+
+// GetInstallScript 动态生成安装脚本
+// GET /subscription/install-singbox.sh
+func GetInstallScript(c *gin.Context) {
+	// 1. 准备默认配置数据
+	// 如果数据库中没有这些 key，会自动写入默认值
+	data := gin.H{
+		"FixedPortSS":      getOrSetDefault("fixed_port_ss", "10001"),
+		"FixedPortHY2":     getOrSetDefault("fixed_port_hy2", "10002"),
+		"FixedPortTUIC":    getOrSetDefault("fixed_port_tuic", "10003"),
+		"FixedPortReality": getOrSetDefault("fixed_port_reality", "10004"),
+		"FixedPortSocks5":  getOrSetDefault("fixed_port_socks5", "10005"),
+
+		"FixedRealitySNI": getOrSetDefault("fixed_reality_sni", "learn.microsoft.com"),
+		"FixedSSMethod":   getOrSetDefault("fixed_ss_method", "2022-blake3-aes-128-gcm"),
+		"FixedSocks5User": getOrSetDefault("fixed_socks5_user", "admin"),
+
+		"FixedSocks5Pass": getOrSetDefault("fixed_socks5_pass", "nodeReporttest"),
+	}
+
+	// 2. 处理上报地址和 Token
+	// 获取当前请求的 host (例如: example.com 或 1.2.3.4:8000)
+	scheme := "http"
+	if c.Request.TLS != nil || c.Request.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	baseURL := scheme + "://" + c.Request.Host
+
+	// 如果数据库配置了 system_domain，优先使用它
+	if domain, _ := models.GetSetting("system_domain"); domain != "" {
+		if !strings.HasPrefix(domain, "http") {
+			baseURL = "https://" + domain
+		} else {
+			baseURL = domain
+		}
+	}
+	// 去除末尾斜杠
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	// 设置默认上报地址
+	data["ReportURL"] = baseURL + "/api/v1/nodes/report"
+
+	// 获取 Token (如果没有设置则为空，脚本会留空)
+	data["ReportToken"] = ""
+
+	// 3. 读取模板文件
+	// 注意：根据你的 Dockerfile，模板目录是 /app/template
+	// 本地开发时可能是 ./template
+	scriptPath := "template/install-singbox.sh"
+	content, err := os.ReadFile(scriptPath)
+	if err != nil {
+		utils.Error("读取脚本模板失败: %v", err)
+		utils.FailWithMsg(c, "Script template not found")
+		return
+	}
+
+	// 4. 解析并渲染模板
+	tmpl, err := template.New("install-script").Parse(string(content))
+	if err != nil {
+		utils.Error("解析脚本模板失败: %v", err)
+		utils.FailWithMsg(c, "Script template parse error")
+		return
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		utils.Error("渲染脚本模板失败: %v", err)
+		utils.FailWithMsg(c, "Script render error")
+		return
+	}
+
+	// 5. 返回结果 (Content-Type 设置为 shell 脚本)
+	// 禁止缓存，确保每次获取都是最新的配置
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Data(200, "application/x-sh; charset=utf-8", buf.Bytes())
+}
+
+// GetInstallScriptConfig 获取安装脚本的配置参数
+// GET /api/v1/nodes/install-config
+func GetInstallScriptConfig(c *gin.Context) {
+	// 复用 getOrSetDefault 确保数据库里有值（如果没有则初始化为默认值）
+	config := gin.H{
+		"fixedPortSS":      getOrSetDefault("fixed_port_ss", "10001"),
+		"fixedPortHY2":     getOrSetDefault("fixed_port_hy2", "10002"),
+		"fixedPortTUIC":    getOrSetDefault("fixed_port_tuic", "10003"),
+		"fixedPortReality": getOrSetDefault("fixed_port_reality", "10004"),
+		"fixedPortSocks5":  getOrSetDefault("fixed_port_socks5", "10005"),
+
+		"fixedRealitySNI": getOrSetDefault("fixed_reality_sni", "learn.microsoft.com"),
+		"fixedSSMethod":   getOrSetDefault("fixed_ss_method", "2022-blake3-aes-128-gcm"),
+		"fixedSocks5User": getOrSetDefault("fixed_socks5_user", "admin"),
+		"fixedSocks5Pass": getOrSetDefault("fixed_socks5_pass", "nodeReporttest"),
+	}
+
+	utils.OkDetailed(c, "获取配置成功", config)
+}
+
+// UpdateInstallScriptConfig 更新安装脚本的配置参数
+// POST /api/v1/nodes/install-config
+func UpdateInstallScriptConfig(c *gin.Context) {
+	var req struct {
+		FixedPortSS      string `json:"fixedPortSS"`
+		FixedPortHY2     string `json:"fixedPortHY2"`
+		FixedPortTUIC    string `json:"fixedPortTUIC"`
+		FixedPortReality string `json:"fixedPortReality"`
+		FixedPortSocks5  string `json:"fixedPortSocks5"`
+		FixedRealitySNI  string `json:"fixedRealitySNI"`
+		FixedSSMethod    string `json:"fixedSSMethod"`
+		FixedSocks5User  string `json:"fixedSocks5User"`
+		FixedSocks5Pass  string `json:"fixedSocks5Pass"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithMsg(c, "参数错误")
+		return
+	}
+
+	// 辅助函数：保存配置并处理错误
+	save := func(key, value string) error {
+		// 允许为空值吗？如果业务逻辑允许空值，直接保存；如果不允许，可以在这里加判断
+		return models.SetSetting(key, value)
+	}
+
+	// 逐个保存字段
+	// 注意：前端传来的 key (如 fixedPortSS) 对应数据库的 key (如 fixed_port_ss)
+	if err := save("fixed_port_ss", req.FixedPortSS); err != nil {
+		utils.FailWithMsg(c, "保存 SS 端口失败")
+		return
+	}
+	if err := save("fixed_port_hy2", req.FixedPortHY2); err != nil {
+		utils.FailWithMsg(c, "保存 HY2 端口失败")
+		return
+	}
+	if err := save("fixed_port_tuic", req.FixedPortTUIC); err != nil {
+		utils.FailWithMsg(c, "保存 TUIC 端口失败")
+		return
+	}
+	if err := save("fixed_port_reality", req.FixedPortReality); err != nil {
+		utils.FailWithMsg(c, "保存 Reality 端口失败")
+		return
+	}
+	if err := save("fixed_port_socks5", req.FixedPortSocks5); err != nil {
+		utils.FailWithMsg(c, "保存 Socks5 端口失败")
+		return
+	}
+
+	if err := save("fixed_reality_sni", req.FixedRealitySNI); err != nil {
+		utils.FailWithMsg(c, "保存 SNI 失败")
+		return
+	}
+	if err := save("fixed_ss_method", req.FixedSSMethod); err != nil {
+		utils.FailWithMsg(c, "保存 SS 加密方式失败")
+		return
+	}
+	if err := save("fixed_socks5_user", req.FixedSocks5User); err != nil {
+		utils.FailWithMsg(c, "保存 Socks5 账号失败")
+		return
+	}
+	if err := save("fixed_socks5_pass", req.FixedSocks5Pass); err != nil {
+		utils.FailWithMsg(c, "保存 Socks5 密码失败")
+		return
+	}
+
+	utils.OkWithMsg(c, "保存配置成功，新下载的脚本将应用此配置")
 }

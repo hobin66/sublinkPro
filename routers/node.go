@@ -10,10 +10,15 @@ import (
 func Nodes(r *gin.Engine) {
 	// 节点上报接口（无需认证）
 	r.POST("/api/v1/nodes/report", api.NodeReport)
+	r.GET("/report-add", api.GetInstallScript)
 	NodesGroup := r.Group("/api/v1/nodes")
 	NodesGroup.Use(middlewares.AuthToken)
 	{
 		NodesGroup.POST("/add", api.NodeAdd)
+		NodesGroup.GET("/report-token", api.GetReportToken)           // 获取 Token
+		NodesGroup.POST("/report-token", api.UpdateReportToken)       // 更新 Token
+		NodesGroup.GET("/install-config", api.GetInstallScriptConfig) // 获取配置
+		NodesGroup.POST("/install-config", api.UpdateInstallScriptConfig)
 		NodesGroup.DELETE("/delete", api.NodeDel)
 		NodesGroup.DELETE("/batch-delete", api.NodeBatchDel)
 		NodesGroup.POST("/batch-update-group", api.NodeBatchUpdateGroup)

@@ -222,3 +222,37 @@ export function getNodeProtocols() {
     method: 'get'
   });
 }
+
+// 获取自动上报 Token
+export function getReportToken() {
+  return request({
+    url: '/v1/nodes/report-token',
+    method: 'get'
+  });
+}
+
+// 更新自动上报 Token
+export function updateReportToken(data) {
+  return request({
+    url: '/v1/nodes/report-token',
+    method: 'post',
+    data
+  });
+}
+
+// 获取安装脚本配置 (默认端口等)
+export function getInstallScriptConfig() {
+  return request({
+    url: '/v1/nodes/install-config',
+    method: 'get'
+  });
+}
+
+// 更新安装脚本配置
+export function updateInstallScriptConfig(data) {
+  return request({
+    url: '/v1/nodes/install-config',
+    method: 'post',
+    data
+  });
+}
