@@ -161,22 +161,56 @@ const AutoReportDialog = ({ open, onClose }) => {
   }, [baseUrl, token, selectedProtocols]);
 
   const handleCopy = async () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(generatedCommand);
-      } else {
+    const text = generatedCommand;
+
+    // === 定义降级复制策略 (兼容 HTTP) ===
+    const fallbackCopy = () => {
+      try {
         const textArea = document.createElement("textarea");
-        textArea.value = generatedCommand;
+        textArea.value = text;
+        
+        // 确保元素不可见但存在于 DOM 中，且位置固定防止页面滚动
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        
         document.body.appendChild(textArea);
+        textArea.focus();
         textArea.select();
-        document.execCommand('copy');
+        
+        const successful = document.execCommand('copy');
         document.body.removeChild(textArea);
+        
+        if (successful) {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+          showMsg('复制成功', 'success');
+        } else {
+          showMsg('复制失败，请手动选择复制', 'error');
+        }
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+        showMsg('复制失败', 'error');
       }
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-      showMsg('复制成功', 'success');
-    } catch (err) {
-      showMsg('复制失败', 'error');
+    };
+
+    // === 主逻辑：优先尝试 API，失败则降级 ===
+    // 即使是 HTTP，某些浏览器也可能有 clipboard 对象但 writeText 会抛错
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+        showMsg('复制成功', 'success');
+      } catch (err) {
+        // 关键点：如果 API 报错（如环境不安全），捕获错误并立即执行降级策略
+        console.warn('Clipboard API failed, switching to fallback...', err);
+        fallbackCopy();
+      }
+    } else {
+      // 浏览器完全不支持 API，直接降级
+      fallbackCopy();
     }
   };
 

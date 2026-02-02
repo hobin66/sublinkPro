@@ -1115,7 +1115,7 @@ func GetInstallScript(c *gin.Context) {
 		utils.FailWithMsg(c, "Script template not found in any search paths")
 		return
 	}
-
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
 	// 4. 解析并渲染模板
 	tmpl, err := template.New("install-script").Parse(string(content))
 	c.Header("Content-Disposition", "attachment; filename=install-singbox.sh")
