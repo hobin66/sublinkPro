@@ -8,6 +8,8 @@ import (
 )
 
 func Nodes(r *gin.Engine) {
+	// 节点上报接口（无需认证）
+	r.POST("/api/v1/nodes/report", api.NodeReport)
 	NodesGroup := r.Group("/api/v1/nodes")
 	NodesGroup.Use(middlewares.AuthToken)
 	{

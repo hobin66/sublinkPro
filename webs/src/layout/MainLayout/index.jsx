@@ -57,7 +57,7 @@ export default function MainLayout() {
 
       {/* header */}
       <AppBar enableColorOnDark position="fixed" color="inherit" elevation={0} sx={{ bgcolor: 'background.default' }}>
-        <Toolbar sx={{ p: 2 }}>
+        <Toolbar sx={{ p: '10px 16px', minHeight: '60px', height: '60px' }}>
           <Header />
         </Toolbar>
       </AppBar>

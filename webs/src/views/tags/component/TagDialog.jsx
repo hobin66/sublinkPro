@@ -41,6 +41,7 @@ const presetGroups = [
   { value: '延迟评级', description: '根据延迟分类：低延迟、中等延迟、高延迟' },
   { value: '地区分类', description: '按地理区域分类：亚洲、欧洲、美洲等' },
   { value: '用途分类', description: '按使用场景分类：流媒体、游戏、下载等' },
+  { value: '来源分类', description: '按来源分类：手动添加、自动上报等' },
   { value: '稳定性', description: '按节点稳定性分类：稳定、不稳定' }
 ];
 

@@ -5,7 +5,7 @@ import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 
 // project imports
-import MenuCard from './MenuCard';
+
 import MenuList from '../MenuList';
 import LogoSection from '../LogoSection';
 import MiniDrawerStyled from './MiniDrawerStyled';
@@ -40,7 +40,7 @@ function Sidebar() {
   const drawer = useMemo(() => {
     const drawerContent = (
       <>
-        <MenuCard />
+
       </>
     );
 

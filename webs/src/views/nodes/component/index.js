@@ -21,3 +21,5 @@ export { default as BatchActions } from './BatchActions';
 export { default as NodeCard } from './NodeCard';
 export { default as NodeMobileList } from './NodeMobileList';
 export { default as NodeTable } from './NodeTable';
+// 自动上报
+export { default as AutoReportDialog } from './AutoReportDialog';

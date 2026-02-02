@@ -1184,11 +1184,6 @@ export default function DashboardDefault() {
 
   return (
     <Box sx={{ pb: 3 }}>
-      {/* 欢迎横幅 */}
-      <WelcomeBanner greeting={greeting} />
-
-      {/* Star 提醒卡片 */}
-      <StarReminderCard />
 
       {/* 任务进度面板 */}
       <TaskProgressPanel />
@@ -1646,98 +1641,6 @@ export default function DashboardDefault() {
           </Card>
         </Grid>
       </Grid>
-
-      {/* 更新日志 */}
-      <MainCard
-        title={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 36,
-                height: 36,
-                borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
-              }}
-            >
-              <Typography sx={{ fontSize: '1.2rem' }}>📝</Typography>
-            </Box>
-            <Typography variant="h4" sx={{ fontWeight: 600 }}>
-              更新日志
-            </Typography>
-          </Box>
-        }
-        secondary={
-          <Tooltip title="刷新" arrow>
-            <Box component="span" sx={{ display: 'inline-block' }}>
-              <IconButton
-                onClick={fetchReleases}
-                disabled={loadingReleases}
-                sx={{
-                  transition: 'all 0.3s ease',
-                  '&:hover': {
-                    transform: 'rotate(180deg)',
-                    background: alpha(theme.palette.primary.main, 0.1)
-                  }
-                }}
-              >
-                <RefreshIcon />
-              </IconButton>
-            </Box>
-          </Tooltip>
-        }
-        sx={{
-          borderRadius: 4,
-          overflow: 'hidden',
-          '& .MuiCardHeader-root': {
-            borderBottom: `1px solid ${isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06)}`
-          }
-        }}
-      >
-        {loadingReleases ? (
-          <Box>
-            {[1, 2, 3].map((i) => (
-              <Box key={i} sx={{ mb: 2.5 }}>
-                <Skeleton
-                  variant="rectangular"
-                  height={140}
-                  sx={{
-                    borderRadius: 3,
-                    bgcolor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04)
-                  }}
-                />
-              </Box>
-            ))}
-          </Box>
-        ) : releases.length > 0 ? (
-          releases.map((release) => <ReleaseCard key={release.id} release={release} />)
-        ) : (
-          <Box
-            sx={{
-              textAlign: 'center',
-              py: 8,
-              px: 3
-            }}
-          >
-            <Typography
-              sx={{
-                fontSize: '3rem',
-                mb: 2
-              }}
-            >
-              📭
-            </Typography>
-            <Typography variant="h6" color="textSecondary" sx={{ fontWeight: 500 }}>
-              暂无更新日志
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-              请检查网络连接或稍后重试
-            </Typography>
-          </Box>
-        )}
-      </MainCard>
 
       {/* 复制成功提示 */}
       <Snackbar

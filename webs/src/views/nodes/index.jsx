@@ -17,6 +17,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SpeedIcon from '@mui/icons-material/Speed';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 // project imports
 import MainCard from 'ui-component/cards/MainCard';
@@ -63,7 +64,8 @@ import {
   NodeFilters,
   BatchActions,
   NodeMobileList,
-  NodeTable
+  NodeTable,
+  AutoReportDialog
 } from './component';
 
 // utils
@@ -103,6 +105,7 @@ export default function NodeList() {
   const [nodeDialogOpen, setNodeDialogOpen] = useState(false);
   const [isEditNode, setIsEditNode] = useState(false);
   const [currentNode, setCurrentNode] = useState(null);
+  const [autoReportOpen, setAutoReportOpen] = useState(false);
   const [nodeForm, setNodeForm] = useState({
     name: '',
     link: '',
@@ -905,6 +908,9 @@ export default function NodeList() {
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddNode}>
               添加节点
             </Button>
+            <Button variant="outlined" color="primary" startIcon={<CloudUploadIcon />} onClick={() => setAutoReportOpen(true)}>
+              自动上报
+            </Button>
             <Button variant="outlined" color="primary" startIcon={<DownloadIcon />} onClick={() => navigate('/subscription/airports')}>
               机场管理
             </Button>
@@ -945,6 +951,16 @@ export default function NodeList() {
             sx={{ whiteSpace: 'nowrap' }}
           >
             机场
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            color="primary"
+            startIcon={<CloudUploadIcon />}
+            onClick={() => setAutoReportOpen(true)}
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            自动上报
           </Button>
           <Button
             size="small"
@@ -1230,6 +1246,11 @@ export default function NodeList() {
         content={confirmInfo.content}
         onClose={handleConfirmClose}
         onConfirm={confirmInfo.action}
+      />
+
+      <AutoReportDialog 
+        open={autoReportOpen} 
+        onClose={() => setAutoReportOpen(false)} 
       />
     </MainCard>
   );
