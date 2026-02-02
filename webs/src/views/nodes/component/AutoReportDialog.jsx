@@ -163,21 +163,39 @@ const AutoReportDialog = ({ open, onClose }) => {
   const handleCopy = async () => {
     const text = generatedCommand;
 
-    // === 定义降级复制策略 (兼容 HTTP) ===
+    // 0. 防御性检查：确保有内容可复制
+    if (!text) {
+        showMsg('生成命令为空，无法复制', 'error');
+        return;
+    }
+
+    // === 定义降级复制策略 (兼容 HTTP / 旧浏览器) ===
     const fallbackCopy = () => {
       try {
         const textArea = document.createElement("textarea");
         textArea.value = text;
         
-        // 确保元素不可见但存在于 DOM 中，且位置固定防止页面滚动
-        textArea.style.top = "0";
-        textArea.style.left = "0";
+        // 🔧 [核心修改] 样式调整：
+        // 移出可视区域而不是设为透明，确保浏览器认为它是"可交互"的
         textArea.style.position = "fixed";
-        textArea.style.opacity = "0";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        // 保持一定的宽高，防止被浏览器忽略
+        textArea.style.width = "1px";
+        textArea.style.height = "1px";
+        textArea.style.padding = "0";
+        textArea.style.border = "none";
+        textArea.style.outline = "none";
+        textArea.style.boxShadow = "none";
+        textArea.style.background = "transparent";
         
         document.body.appendChild(textArea);
+        
+        // 聚焦并选中
         textArea.focus();
         textArea.select();
+        // 🔧 [兼容性] 移动端/部分浏览器需要设置选区范围
+        textArea.setSelectionRange(0, 99999); 
         
         const successful = document.execCommand('copy');
         document.body.removeChild(textArea);
@@ -187,16 +205,18 @@ const AutoReportDialog = ({ open, onClose }) => {
           setTimeout(() => setCopySuccess(false), 2000);
           showMsg('复制成功', 'success');
         } else {
-          showMsg('复制失败，请手动选择复制', 'error');
+          // execCommand 返回 false
+          throw new Error('execCommand failed');
         }
       } catch (err) {
         console.error('Fallback copy failed:', err);
-        showMsg('复制失败', 'error');
+        // 最后的保底：提示用户手动复制
+        showMsg('复制失败，请手动选中文本复制', 'error');
       }
     };
 
     // === 主逻辑：优先尝试 API，失败则降级 ===
-    // 即使是 HTTP，某些浏览器也可能有 clipboard 对象但 writeText 会抛错
+    // 注意：navigator.clipboard 在非 HTTPS (http://IP) 下通常是 undefined
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try {
         await navigator.clipboard.writeText(text);
@@ -204,12 +224,12 @@ const AutoReportDialog = ({ open, onClose }) => {
         setTimeout(() => setCopySuccess(false), 2000);
         showMsg('复制成功', 'success');
       } catch (err) {
-        // 关键点：如果 API 报错（如环境不安全），捕获错误并立即执行降级策略
+        // API 调用失败（可能是权限或环境问题），转入降级
         console.warn('Clipboard API failed, switching to fallback...', err);
         fallbackCopy();
       }
     } else {
-      // 浏览器完全不支持 API，直接降级
+      // 浏览器不支持 API 或处于非安全上下文，直接降级
       fallbackCopy();
     }
   };

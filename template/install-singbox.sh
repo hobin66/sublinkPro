@@ -159,26 +159,6 @@ select_protocols() {
             # 转小写
             arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
             
-            case "$arg_lower" in
-                --report)
-                    if [[ -n "${2:-}" ]]; then
-                        REPORT_URL="$2"
-                        info "-> 启用自动上报: $REPORT_URL"
-                        shift # 移除 --report
-                    else
-                        warn "--report 参数后面必须跟 URL 地址"
-                    fi
-                    ;;
-            case "$arg_lower" in
-                --report)
-                    if [[ -n "${2:-}" ]]; then
-                        REPORT_URL="$2"
-                        info "-> 启用自动上报: $REPORT_URL"
-                        shift # 移除 --report
-                    else
-                        warn "--report 参数后面必须跟 URL 地址"
-                    fi
-                    ;;
                 ss|shadowsocks) 
                     ENABLE_SS=true 
                     info "-> 启用 Shadowsocks"
