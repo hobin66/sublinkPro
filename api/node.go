@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"html/template"
 	"net/url"
 	"os"
 	"strconv"
@@ -11,6 +10,7 @@ import (
 	"sublink/node"
 	"sublink/node/protocol"
 	"sublink/utils"
+	"text/template"
 
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
@@ -1118,6 +1118,8 @@ func GetInstallScript(c *gin.Context) {
 
 	// 4. 解析并渲染模板
 	tmpl, err := template.New("install-script").Parse(string(content))
+	c.Header("Content-Disposition", "attachment; filename=install-singbox.sh")
+	c.Header("Content-Type", "application/x-sh")
 	if err != nil {
 		utils.Error("解析脚本模板失败: %v", err)
 		utils.FailWithMsg(c, "Script template parse error")
