@@ -504,7 +504,7 @@ const PROTOCOL_CONFIGS = [
                                   justifyContent: 'space-between',
                                   ml: 1 
                               },
-                              pointerEvents: proto.hasExtra ? 'auto' : 'none'
+                              
                           }}
                           onClick={(e) => !proto.hasExtra && e.stopPropagation()}
                         >
